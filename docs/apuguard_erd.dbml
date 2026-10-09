@@ -1,0 +1,179 @@
+// APU GUARD — Diagrama Entidad-Relación
+// Nombres de tabla exactos generados por Django (app_label=core)
+// Pegar en https://dbdiagram.io
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USUARIOS Y ROLES
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table auth_user {
+  id          integer      [primary key, increment]
+  username    varchar(150) [not null, unique]
+  email       varchar(254)
+  first_name  varchar(150)
+  last_name   varchar(150)
+  password    varchar(128) [not null]
+  is_staff    boolean      [not null, default: false, note: 'true → Administrador | false → Analista']
+  is_active   boolean      [not null, default: true]
+  date_joined timestamp    [not null]
+}
+
+Table core_perfilanalista {
+  id      integer [primary key, increment]
+  user_id integer [not null, unique]
+}
+
+Table core_perfilanalista_sectores {
+  id                integer [primary key, increment]
+  perfilanalista_id integer [not null]
+  sectorreserva_id  integer [not null]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURACIÓN GLOBAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table core_configuracionglobal {
+  id                            integer [primary key, note: 'Singleton — siempre id=1']
+  umbral_recuperacion_quincenas integer [not null, default: 24]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTORES Y TÉCNICOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table core_sectorreserva {
+  id     integer      [primary key, increment]
+  nombre varchar(200) [not null]
+  codigo varchar(50)  [not null, unique]
+  geom   geometry     [not null, note: 'Polygon SRID=4326']
+  activo boolean      [not null, default: true]
+}
+
+Table core_tecnicocampo {
+  id       integer      [primary key, increment]
+  nombre   varchar(200) [not null]
+  telefono varchar(20)  [not null, note: 'E.164: +51987654321']
+  email    varchar(254)
+  activo   boolean      [not null, default: true]
+  note: 'Contacto SMS — NO es usuario de login'
+}
+
+Table core_tecnicocampo_sectores {
+  id               integer [primary key, increment]
+  tecnicocampo_id  integer [not null]
+  sectorreserva_id integer [not null]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROCESAMIENTO SATELITAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table core_capturasatelital {
+  id                  integer      [primary key, increment]
+  fecha_adquisicion   date         [not null, note: 'Inicio ventana quincenal']
+  s3_path_raw         varchar(500) [not null, note: 'Clave S3 del GeoTIFF Sentinel-2']
+  cobertura_nubes     float        [not null, default: 0.0, note: '[0-100]']
+  estado_liberacion   varchar(20)  [not null, default: 'PROCESANDO', note: 'PROCESANDO | AUDITORIA | LIBERADO']
+  fecha_creacion      timestamp
+  fecha_actualizacion timestamp
+}
+
+Table core_parcheprocesamiento {
+  id                   integer      [primary key, increment]
+  captura_id           integer      [not null]
+  fila_idx             integer      [not null, note: 'Índice fila grilla (stride=64)']
+  col_idx              integer      [not null, note: 'Índice columna grilla (stride=64)']
+  s3_path_tensor       varchar(500) [not null, note: 'Clave S3 tensor .npy → input SageMaker']
+  s3_path_resultado    varchar(500) [note: 'Clave S3 resultado .npz ← output SageMaker']
+  estado_sagemaker     varchar(20)  [not null, default: 'PENDIENTE', note: 'PENDIENTE | PROCESADO | ERROR']
+  geom                 geometry     [not null, note: 'Polygon footprint SRID=4326']
+  sagemaker_request_id varchar(200) [note: 'ID invocación asíncrona SageMaker']
+  fecha_envio          timestamp
+  fecha_respuesta      timestamp
+
+  indexes {
+    (captura_id, fila_idx, col_idx) [unique]
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ALERTAS Y AUDITORÍA
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table core_casoauditoria {
+  id                           integer      [primary key, increment]
+  parche_id                    integer      [unique, note: 'null → caso sin parche']
+  tipo_caso                    varchar(20)  [not null, note: 'DETECCION | INCERTIDUMBRE']
+  estado_caso                  varchar(20)  [not null, default: 'PENDIENTE_REVISION', note: 'PENDIENTE_REVISION | MONITOREO_ACTIVO | VALIDADO_POSITIVO | DESCARTADO | RECUPERADO']
+  score_confianza              float        [not null, note: '1−(entropia_media/ln2) ∈ [0,1]']
+  geom_afectada                geometry     [note: 'MultiPolygon zona deforestada SRID=4326']
+  estado_ecologico             varchar(20)  [not null, default: 'PERTURBADO', note: 'PERTURBADO | RECUPERANDO | RECUPERADO']
+  ciclos_limpios_consecutivos  integer      [not null, default: 0]
+  fecha_recuperacion           date
+  evidencia_s3_key             varchar(500) [note: 'Clave S3 foto de campo']
+  notas_tecnico                text
+  fecha_creacion               timestamp
+  fecha_actualizacion          timestamp
+}
+
+Table core_casoauditoria_sectores {
+  id               integer [primary key, increment]
+  casoauditoria_id integer [not null]
+  sectorreserva_id integer [not null]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMUNICACIONES Y REPORTERÍA
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table core_registrosms {
+  id             integer      [primary key, increment]
+  caso_id        integer      [not null]
+  tecnico_id     integer      [note: 'SET NULL si el técnico es eliminado']
+  mensaje        text         [not null]
+  estado         varchar(20)  [not null, default: 'PENDIENTE', note: 'ENVIADO | FALLIDO | PENDIENTE']
+  sns_message_id varchar(200) [note: 'MessageId retornado por AWS SNS']
+  fecha_envio    timestamp
+  error_detalle  text
+}
+
+Table core_documentoreporte {
+  id                 integer      [primary key, increment]
+  anio               integer      [not null]
+  mes                integer      [not null, note: '1-12']
+  s3_key             varchar(500) [not null, note: 'apuguard-reports/YYYY/MM/reporte_mensual.csv']
+  casos_validados    integer      [not null, default: 0]
+  casos_recuperados  integer      [not null, default: 0]
+  total_sms_enviados integer      [not null, default: 0]
+  fecha_emision      timestamp
+
+  indexes {
+    (anio, mes) [unique]
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RELACIONES
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Usuarios y roles
+Ref: core_perfilanalista.user_id - auth_user.id
+Ref: core_perfilanalista_sectores.perfilanalista_id > core_perfilanalista.id
+Ref: core_perfilanalista_sectores.sectorreserva_id > core_sectorreserva.id
+
+// Técnicos y sectores
+Ref: core_tecnicocampo_sectores.tecnicocampo_id > core_tecnicocampo.id
+Ref: core_tecnicocampo_sectores.sectorreserva_id > core_sectorreserva.id
+
+// Pipeline satelital
+Ref: core_parcheprocesamiento.captura_id > core_capturasatelital.id
+
+// Casos y parches
+Ref: core_casoauditoria.parche_id - core_parcheprocesamiento.id
+Ref: core_casoauditoria_sectores.casoauditoria_id > core_casoauditoria.id
+Ref: core_casoauditoria_sectores.sectorreserva_id > core_sectorreserva.id
+
+// Comunicaciones
+Ref: core_registrosms.caso_id > core_casoauditoria.id
+Ref: core_registrosms.tecnico_id > core_tecnicocampo.id

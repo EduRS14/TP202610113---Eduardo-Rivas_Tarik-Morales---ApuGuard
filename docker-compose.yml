@@ -1,0 +1,119 @@
+services:
+
+  # PostgreSQL con extension PostGIS
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: apuguard_db
+    # Fase A': el password deja de estar hardcodeado en este YAML (quedaba
+    # en git). La imagen postgis toma POSTGRES_PASSWORD del entorno, y el
+    # mismo archivo backend/.env que usan web/celery aporta DB_PASSWORD
+    # (Django). Ambas claves deben ser identicas: lo garantiza
+    # scripts/24_rotar_secretos_dev.py. Si POSTGRES_PASSWORD falta o esta
+    # vacio, el contenedor de BD falla al arrancar (fail-fast).
+    env_file:
+      - ./backend/.env
+    environment:
+      POSTGRES_DB:   apuguard_db
+      POSTGRES_USER: apuguard
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apuguard -d apuguard_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Redis (broker Celery)
+  redis:
+    image: redis:7-alpine
+    container_name: apuguard_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Django API
+  web:
+    build: ./backend
+    container_name: apuguard_web
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Worker
+  celery_worker:
+    build: ./backend
+    container_name: apuguard_celery_worker
+    command: celery -A apuguard worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Celery Beat (scheduler)
+  celery_beat:
+    build: ./backend
+    container_name: apuguard_celery_beat
+    command: celery -A apuguard beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Angular Frontend (desarrollo con hot-reload)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: apuguard_frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "4200:4200"
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:

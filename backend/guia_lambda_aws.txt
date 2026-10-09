@@ -1,0 +1,189 @@
+================================================================================
+  APU GUARD — GUIA: CONFIGURAR AWS LAMBDA PARA VISUALIZACION
+  Convierte .npz de SageMaker en PNGs para el frontend
+================================================================================
+
+*** ESTADO: OPCIONAL / OBSOLETO ***********************************************
+A partir de esta version, el backend Django genera los PNGs directamente al
+recibir el .out de SageMaker (no se necesita AWS Lambda). El codigo de esta
+guia y el archivo lambda_function.py se conservan por referencia historica.
+Si ya tienes la Lambda desplegada, puedes dejarla (no molesta) o eliminar
+su trigger S3 para ahorrar invocaciones. Para regenerar visualizaciones
+de capturas pasadas, usa el script 14_generar_visualizaciones_historicas.py
+que corre dentro del contenedor web y no requiere AWS Lambda.
+******************************************************************************
+
+RESUMEN DEL FLUJO (historico, antes del fix en backend):
+  SageMaker deposita .npz en S3 (sagemaker-outputs/)
+    -> Lambda se activa automaticamente
+    -> Lee .npz + .npy desde S3
+    -> Genera rgb_*.png y mask_*.png
+    -> Los deposita en S3 (sagemaker-visualizations/)
+    -> Django genera URLs presignadas apuntando a esos PNGs
+
+FLUJO ACTUAL:
+  SageMaker deposita .out en S3 (con UUID, sin estructura espejada)
+    -> Celery worker (procesar_resultado_sagemaker) recibe el .out via SQS
+    -> Backend descarga .npy + .out, genera PNGs con Pillow, los sube a S3
+    -> Django genera URLs presignadas apuntando a esos PNGs
+
+================================================================================
+PASO 1 — Preparar el paquete de dependencias (en tu computadora)
+================================================================================
+
+Lambda no incluye numpy ni Pillow. Hay que subirlos como Layer.
+
+En Windows, abre PowerShell o CMD:
+
+  mkdir lambda_layer
+  mkdir lambda_layer\python
+  pip install numpy pillow -t lambda_layer\python\
+
+Luego comprimir:
+  cd lambda_layer
+  Compress-Archive -Path python -DestinationPath lambda_layer_apuguard.zip
+
+Esto genera: lambda_layer_apuguard.zip (~25 MB)
+
+
+================================================================================
+PASO 2 — Crear la Layer en AWS
+================================================================================
+
+1. Ir a AWS Console -> Lambda -> Layers (menu lateral izquierdo)
+2. Click "Crear capa"
+3. Rellenar:
+     Nombre        : apuguard-numpy-pillow
+     Descripcion   : numpy + Pillow para visualizacion APU GUARD
+     Upload        : subir lambda_layer_apuguard.zip
+     Runtimes      : Python 3.12
+4. Click "Crear"
+5. Copiar el ARN que aparece (lo necesitaras en el Paso 4)
+
+
+================================================================================
+PASO 3 — Crear la funcion Lambda
+================================================================================
+
+1. Ir a AWS Console -> Lambda -> Funciones -> "Crear funcion"
+2. Seleccionar "Crear desde cero"
+3. Configurar:
+     Nombre de funcion : apuguard-visualizacion
+     Runtime           : Python 3.12
+     Arquitectura      : x86_64
+4. Click "Crear funcion"
+
+
+================================================================================
+PASO 4 — Pegar el codigo y asignar la Layer
+================================================================================
+
+4.1 CODIGO:
+  En la pestana "Codigo", reemplazar el contenido del editor con el codigo
+  del archivo: apuguard_produccion/backend/lambda_function.py
+  Click "Deploy" (boton naranja)
+
+4.2 LAYER:
+  Bajar hasta la seccion "Capas" -> "Anadir una capa"
+  Seleccionar "ARN personalizado"
+  Pegar el ARN copiado en el Paso 2
+  Click "Verificar" -> "Anadir"
+
+
+================================================================================
+PASO 5 — Configurar memoria y timeout
+================================================================================
+
+Pestana "Configuracion" -> "Configuracion general" -> "Editar":
+
+  Memoria   : 512 MB   (numpy sobre arrays 128x128 necesita margen)
+  Timeout   : 30 seg   (descarga 2 archivos S3 + procesamiento + subida 2 PNGs)
+
+Click "Guardar"
+
+
+================================================================================
+PASO 6 — Permisos IAM
+================================================================================
+
+Pestana "Configuracion" -> "Permisos" -> click en el nombre del Rol de ejecucion
+  (abre IAM en nueva pestana)
+
+En IAM -> "Agregar permisos" -> "Adjuntar politicas" -> "Crear politica":
+
+  Servicio : S3
+  Acciones :
+    Lectura  -> GetObject
+    Escritura -> PutObject
+  Recursos:
+    Bucket: apuguard-datalake-prod
+    Objeto: * (todos)
+
+Nombre de politica: apuguard-lambda-s3-policy
+Click "Crear politica" y adjuntarla al rol.
+
+
+================================================================================
+PASO 7 — Configurar el disparador S3
+================================================================================
+
+Volver a la funcion Lambda -> pestana "Configuracion" -> "Disparadores"
+Click "Anadir disparador"
+
+  Origen          : S3
+  Bucket          : apuguard-datalake-prod
+  Tipos de evento : s3:ObjectCreated:* (All object create events)
+  Prefijo         : sagemaker-outputs/
+  Sufijo          : .npz
+
+Click "Anadir"
+
+IMPORTANTE: AWS mostrara una advertencia sobre recursividad si el bucket
+de entrada y salida es el mismo. Confirmar que SI queremos continuar —
+no hay riesgo porque el prefijo de salida (sagemaker-visualizations/)
+es diferente al prefijo del trigger (sagemaker-outputs/).
+
+
+================================================================================
+PASO 8 — Verificacion
+================================================================================
+
+Para probar sin esperar a SageMaker, usar el evento de prueba de Lambda:
+
+1. Pestana "Prueba" -> "Crear evento de prueba"
+2. Nombre: test-npz-evento
+3. Pegar este JSON (ajustar con un npz real que exista en tu S3):
+
+{
+  "Records": [
+    {
+      "s3": {
+        "bucket": {
+          "name": "apuguard-datalake-prod"
+        },
+        "object": {
+          "key": "sagemaker-outputs/captura_1/parche_0_0.npz"
+        }
+      }
+    }
+  ]
+}
+
+4. Click "Probar"
+5. Resultado esperado: statusCode 200
+6. Verificar en S3 que aparecieron:
+     sagemaker-visualizations/captura_1/parche_0_0_rgb.png
+     sagemaker-visualizations/captura_1/parche_0_0_mask.png
+
+
+================================================================================
+RESUMEN DE RECURSOS CREADOS
+================================================================================
+
+  Layer    : apuguard-numpy-pillow (Python 3.12)
+  Funcion  : apuguard-visualizacion (Python 3.12, 512MB, 30s)
+  Trigger  : S3 apuguard-datalake-prod / sagemaker-outputs/*.npz
+  IAM      : apuguard-lambda-s3-policy (GetObject + PutObject)
+  Salida   : s3://apuguard-datalake-prod/sagemaker-visualizations/
+
+================================================================================

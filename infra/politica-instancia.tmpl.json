@@ -1,0 +1,50 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DataLake",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::apuguard-datalake-prod",
+        "arn:aws:s3:::apuguard-datalake-prod/*"
+      ]
+    },
+    {
+      "Sid": "ColaDeResultados",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:GetQueueUrl",
+        "sqs:GetQueueAttributes",
+        "sqs:SendMessage",
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage"
+      ],
+      "Resource": "arn:aws:sqs:__REGION__:__CUENTA__:apuguard-*"
+    },
+    {
+      "Sid": "AlertasSNS",
+      "Effect": "Allow",
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:Publish",
+        "sns:Subscribe"
+      ],
+      "Resource": "arn:aws:sns:__REGION__:__CUENTA__:apuguard-*"
+    },
+    {
+      "Sid": "InferenciaSageMaker",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:InvokeEndpoint",
+        "sagemaker:InvokeEndpointAsync"
+      ],
+      "Resource": "arn:aws:sagemaker:__REGION__:__CUENTA__:endpoint/*"
+    }
+  ]
+}

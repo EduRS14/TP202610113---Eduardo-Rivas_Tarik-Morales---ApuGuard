@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Variables globales APU GUARD ---------- */
+:root {
+  --color-primary:      #1a3c34;
+  --color-primary-light:#2d5a4e;
+  --color-accent:       #4CAF50;
+  --color-danger:       #ef4444;
+  --color-warning:      #f59e0b;
+  --color-success:      #22c55e;
+  --color-bg:           #f9fafb;
+  --color-surface:      #ffffff;
+  --color-border:       #e5e7eb;
+  --color-text:         #111827;
+  --color-muted:        #6b7280;
+}
+
+/* ---------- Reset / Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--color-bg); color: var(--color-text); }
+
+/* ---------- Scrollbar delgada ---------- */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+
+/* ---------- Utilidades comunes APU GUARD ---------- */
+@layer components {
+
+  .btn-primary {
+    @apply bg-primary text-white font-medium px-4 py-2 rounded-lg
+           hover:bg-primary-light transition-colors duration-150 disabled:opacity-50;
+  }
+
+  .btn-danger {
+    @apply bg-danger text-white font-medium px-4 py-2 rounded-lg
+           hover:bg-red-600 transition-colors duration-150;
+  }
+
+  .btn-outline {
+    @apply border border-primary text-primary font-medium px-4 py-2 rounded-lg
+           hover:bg-primary hover:text-white transition-colors duration-150;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-4;
+  }
+
+  .badge-pendiente  { @apply text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700; }
+  .badge-validado   { @apply text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700; }
+  .badge-completado { @apply text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700; }
+  .badge-advertencia{ @apply text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700; }
+  /* Fase G6: alerta que NACIO en la ultima pasada (no es un caso arrastrado) */
+  .badge-nueva      { @apply text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700; }
+
+  .input-field {
+    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+           focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+
+  .select-field {
+    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white
+           focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+}
+
+/* ---------- Marcadores personalizados APU GUARD ---------- */
+.apuguard-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* ---------- Leaflet z-index fix para modales PrimeNG ---------- */
+.leaflet-pane         { z-index: 400 !important; }
+.leaflet-control      { z-index: 800 !important; }
+.leaflet-top,
+.leaflet-bottom       { z-index: 800 !important; }

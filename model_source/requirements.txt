@@ -1,0 +1,13 @@
+# APU GUARD — Dependencias para contenedor SageMaker PyTorch 2.0
+#
+# NO incluir: torch, torchvision, numpy
+# (ya preinstalados en el contenedor oficial pytorch-2.0 de AWS)
+#
+# Librería detectada:
+#   timm — usada en HRNetSegmentation para cargar el backbone hrnet_w18_small_v2
+#           mediante timm.create_model(..., features_only=True)
+#
+# Versión fijada para reproducibilidad. Verificar con:
+#   pip show timm
+
+timm==1.0.15

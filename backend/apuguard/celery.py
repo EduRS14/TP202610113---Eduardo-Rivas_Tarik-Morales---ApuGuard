@@ -1,0 +1,12 @@
+"""
+celery.py - Configuracion de Celery para APU GUARD
+"""
+
+import os
+from celery import Celery
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "apuguard.settings")
+
+app = Celery("apuguard")
+app.config_from_object("django.conf:settings", namespace="CELERY")
+app.autodiscover_tasks()

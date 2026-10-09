@@ -1,0 +1,104 @@
+# =============================================
+# APU GUARD - .gitignore
+# =============================================
+
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.venv/
+venv/
+env/
+ENV/
+
+# --- Django especifico ---
+*.log
+db.sqlite3
+db.sqlite3-journal
+celerybeat-schedule
+celerybeat-schedule.db
+media/
+staticfiles/
+
+# --- Entorno ---
+.env
+.env.local
+.env.production
+*.env
+!.env.example
+!.env.example.template
+
+# --- Secretos / credenciales ---
+secrets/
+*.pem
+*.key
+*.crt
+service-account*.json
+gee_key.json
+*credentials*.json
+gcp-credentials.json
+
+# --- IDEs / editores ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Frontend / Node ---
+node_modules/
+dist/
+.angular/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vite/
+*.local
+coverage/
+
+# --- Docker ---
+docker-compose.override.local.yml
+.env.docker
+
+# --- Artefactos de ejecucion ---
+*.tif
+*.tiff
+*.npy
+*.npz
+*.out
+parches_visualizacion.html
+resultados/
+output/
+downloads/
+scripts/out_stac/
+backend/scripts/out_stac/
+
+# --- Reportes / logs ---
+*.csv
+!examples/*.csv
+logs/
+*.log.*
+
+# --- Artefactos de despliegue (Fase D) ---
+build/
+*.dump
+*.tgz
+
+# --- Refuerzos para repo publico ---
+# Claves de acceso AWS nunca deben entrar (aunque no esten copiadas)
+infra/*accessKeys*
+infra/Clave*
+# Los .tif de capas estaticas SI se versionan (excepcion a *.tif de arriba)
+!static-layers-out/*.tif

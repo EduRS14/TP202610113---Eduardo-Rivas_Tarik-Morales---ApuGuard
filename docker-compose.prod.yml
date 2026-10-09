@@ -1,0 +1,100 @@
+# =====================================================================
+# APU GUARD — stack de PRODUCCION (Fase D)
+#
+# Se invoca SIEMPRE con las dos -f:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml ...
+#
+# Importante: al pasar -f explicitamente, Compose NO carga
+# docker-compose.override.yml (que fuerza `runserver` y publica 5433).
+#
+# Reglas de esta capa:
+#   1. Ningun puerto del stack sale a internet salvo el 80 del frontend,
+#      que es lo que consume CloudFront. El base publica 5432, 6379, 8000
+#      y 4200: todos se cierran aqui con `!override`.
+#   2. El backend se arranca con el CMD de la imagen (migrate &&
+#      collectstatic && gunicorn), no con runserver. `!reset null`
+#      elimina el `command` heredado para que mande el de la imagen.
+#   3. Todo con restart + logs rotados: CloudWatch Logs esta bloqueado
+#      (coste por GB), asi que el unico destino del stdout es el driver
+#      json-file del motor con techo de 10 MB x 3 rotaciones.
+# =====================================================================
+
+services:
+
+  db:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports: !override []
+
+  redis:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports: !override []
+
+  web:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Sin puertos publicados: Django solo se alcanza por la red interna
+    # desde el contenedor frontend.
+    ports: !override []
+    # `!reset null` borra el `command` de docker-compose.yml (runserver)
+    # y deja que mande el CMD del backend/Dockerfile.
+    command: !reset null
+    # En produccion NUNCA se compila en la instancia: t3.small tiene 2 GB
+    # y el build de GDAL se queda sin memoria. La imagen se construye en
+    # local y llega por `docker save`/`docker load` (deploy_paquetear.ps1).
+    # Los nombres son explícitos para no depender del nombre del directorio
+    # del proyecto (/opt/apuguard en el servidor).
+    build: !reset null
+    image: apuguard-prod-web:latest
+    pull_policy: never
+
+  celery_worker:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    build: !reset null
+    image: apuguard-prod-celery_worker:latest
+    pull_policy: never
+
+  celery_beat:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    build: !reset null
+    image: apuguard-prod-celery_beat:latest
+    pull_policy: never
+
+  frontend:
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    build: !reset null
+    image: apuguard-prod-frontend:latest
+    pull_policy: never
+    # Unico puerto expuesto: el 80 es el origen de CloudFront.
+    ports: !override
+      - "80:80"
+    # Sin bind-mount: el bundle viene de la imagen, no del host.
+    volumes: !override []

@@ -1,0 +1,51 @@
+# -- Secretos: jamas dentro de la imagen --
+.env
+.env.*
+gee_key.json
+*.pem
+*.key
+*.p12
+*.pfx
+
+# -- Python --
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# -- Django / runtime --
+*.sqlite3
+db.sqlite3
+celerybeat-schedule
+celerybeat.pid
+*.log
+logs/
+audit-logs/
+
+# -- Generado dentro del contenedor al arrancar (collectstatic) --
+# En prod el CMD del Dockerfile ejecuta `manage.py collectstatic` y
+# escribe en /app/staticfiles; no debe entrar en la imagen.
+staticfiles/
+media/
+
+# -- Artefactos de verificacion --
+scripts/out_stac/
+*.tif
+*.tiff
+*.npy
+*.npz
+
+# -- Node / Angular (si el contexto de build es la raiz del proyecto) --
+node_modules/
+.angular/
+dist/
+frontend/
+
+# -- Git / IDE --
+.git/
+.gitignore
+.idea/
+.vscode/

@@ -1,0 +1,21 @@
+services:
+
+  # Puerto 5432 del host ocupado por un PostgreSQL local.
+  # Se publica en 5433; la app dentro de Docker sigue usando db:5432
+  # por la red interna, asi que no cambia nada en el pipeline.
+  db:
+    # !override sustituye el mapeo 5432:5432 del compose base
+    # (sin esto, Compose hace union de listas y publicaria ambos).
+    ports: !override
+      - "5433:5432"
+
+  web:
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  celery_worker:
+    command: celery -A apuguard worker --loglevel=info
+
+  celery_beat:
+    command: celery -A apuguard beat --loglevel=info

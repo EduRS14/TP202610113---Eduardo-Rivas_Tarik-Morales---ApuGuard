@@ -1,0 +1,15 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar dependencias primero (cacheado si package.json no cambia)
+COPY package*.json ./
+RUN npm install
+
+# El código fuente se monta como volumen (hot-reload)
+COPY . .
+
+EXPOSE 4200
+
+# Usa proxy hacia el servicio 'web' de Docker (no localhost)
+CMD ["npx", "ng", "serve", "--host", "0.0.0.0", "--poll", "2000", "--proxy-config", "proxy.conf.docker.json"]
